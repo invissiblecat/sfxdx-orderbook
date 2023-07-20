@@ -3,9 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { OrderModule } from './order/order.module';
 import { ContractService } from './contract/contract.service';
 import { EthersService } from './ethers/ethers.service';
-import dotenv from 'dotenv';
+import { EventListenerService } from './event-listener/event-listener.service';
+import { ConfigModule } from '@nestjs/config';
 
-dotenv.config();
 @Module({
   imports: [
     TypeOrmModule.forRoot({
@@ -14,9 +14,10 @@ dotenv.config();
       autoLoadEntities: true,
       synchronize: true,
     }),
+    ConfigModule.forRoot(),
     OrderModule,
   ],
   controllers: [],
-  providers: [ContractService, EthersService],
+  providers: [ContractService, EthersService, EventListenerService],
 })
 export class AppModule {}

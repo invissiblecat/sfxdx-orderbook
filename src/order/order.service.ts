@@ -27,8 +27,4 @@ export class OrderService {
   update(id: string, updateOrderDto: UpdateOrderDto) {
     return `This action updates a #${id} order`;
   }
-
-  remove(id: string) {
-    return `This action removes a #${id} order`;
-  }
 }
