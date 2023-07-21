@@ -1,23 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
-import { Order } from './entities/order.entity';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Order } from './order.schema';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 
 @Injectable()
 export class OrderService {
   constructor(
-    @InjectRepository(Order)
-    private ordersRepository: Repository<Order>,
+    @InjectModel('Order')
+    private orderModel: Model<Order>,
   ) {}
 
-  create(createOrderDto: CreateOrderDto) {
-    return 'This action adds a new order';
+  async create(createOrderDto: CreateOrderDto) {
+    return new this.orderModel(createOrderDto).save();
   }
 
   findAll() {
-    return `This action returns all order`;
+    return this.orderModel.find();
   }
 
   findOne(id: string) {
@@ -26,5 +26,10 @@ export class OrderService {
 
   update(id: string, updateOrderDto: UpdateOrderDto) {
     return `This action updates a #${id} order`;
+  }
+
+  async batchCreateOrders(orders: CreateOrderDto[]) {
+    orders.forEach((order) => this.create(order));
+    console.log(`here`);
   }
 }

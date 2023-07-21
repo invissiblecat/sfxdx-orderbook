@@ -3,6 +3,8 @@ import { Event } from 'ethers';
 import { ContractService } from 'src/contract/contract.service';
 import { EthersService } from 'src/ethers/ethers.service';
 import { OrderService } from 'src/order/order.service';
+import { OrderCreatedEventEmittedResponse } from 'src/types/abi/order-controller';
+import { makeOrderCreateDtoFromRawInfo } from 'src/utils/orders';
 
 const GOERLI_MAX_BLOCKS_PER_GET = 5000;
 
@@ -13,14 +15,21 @@ export class EventListenerService {
     private contractSerice: ContractService,
     private ethersService: EthersService,
   ) {
-    this.syncPreviousEvents();
+    this.syncOrders();
   }
 
-  async syncPreviousEvents() {
-    const events = await this.getAllEvents();
+  async syncOrders() {
+    const events = await this.getPreviousEvents();
+
+    const orderIds = this.getOrderIdsFromEvents(events);
+    const orders = await this.contractSerice.batchGetOrdersInfo(orderIds);
+    const createOrderDtos = orders.map((order, i) =>
+      makeOrderCreateDtoFromRawInfo(order, events[i]),
+    );
+    await this.orderSerice.batchCreateOrders(createOrderDtos);
   }
 
-  async getAllEvents() {
+  async getPreviousEvents() {
     const orderController = this.contractSerice.getOrderControllerContract();
 
     const provider = this.ethersService.getProvider();
@@ -33,12 +42,16 @@ export class EventListenerService {
       toBlock <= currentLastBlock;
       toBlock += GOERLI_MAX_BLOCKS_PER_GET
     ) {
-      const promise = orderController.queryFilter('*', fromBlock, toBlock);
+      const promise = orderController.queryFilter(
+        'OrderCreated',
+        fromBlock,
+        toBlock,
+      );
       eventPromises.push(promise);
       fromBlock = toBlock;
     }
     eventPromises.push(
-      orderController.queryFilter('*', fromBlock, currentLastBlock),
+      orderController.queryFilter('OrderCreated', fromBlock, currentLastBlock), //todo response err handle
     );
 
     const eventsByBlocks = await Promise.all(eventPromises);
@@ -49,6 +62,10 @@ export class EventListenerService {
       return result;
     }, []);
 
-    return events;
+    return events as unknown as { args: OrderCreatedEventEmittedResponse }[];
+  }
+
+  getOrderIdsFromEvents(events: { args: OrderCreatedEventEmittedResponse }[]) {
+    return events.map((event) => event.args.id.toString());
   }
 }
