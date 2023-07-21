@@ -1,6 +1,6 @@
 import { BigNumber } from 'ethers';
 import { CreateOrderDto } from 'src/order/dto/create-order.dto';
-import { OrderStatus, OrderType } from 'src/order/order.schema';
+import { OrderStatus, OrderType } from 'src/schemas/order.schema';
 import {
   GetOrderInfoResponse,
   OrderCreatedEventEmittedResponse,

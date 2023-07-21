@@ -1,4 +1,4 @@
-import { OrderStatus, OrderType } from '../order.schema';
+import { OrderStatus, OrderType } from '../../schemas/order.schema';
 
 export class CreateOrderDto {
   id: string;
