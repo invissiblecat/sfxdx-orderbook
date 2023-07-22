@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { Order } from '../schemas/order.schema';
+import { Order, OrderStatus } from '../schemas/order.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { OrderMatchedEventEmittedResponse } from 'src/types/abi/order-controller';
+import {
+  OrderCancelledEventEmittedResponse,
+  OrderMatchedEventEmittedResponse,
+} from 'src/types/abi/order-controller';
+import { UpdateOrderDto } from './dto/update-order.dto';
 
 @Injectable()
 export class OrderService {
@@ -32,7 +36,15 @@ export class OrderService {
     return this.orderModel.findOne({ _id }).populate('matchingOrders');
   }
 
-  async updateById(_id: string, matchingOrderIds: string[] = []) {
+  async updateById({
+    _id,
+    matchingOrderIds,
+    updateData,
+  }: {
+    _id: string;
+    matchingOrderIds?: string[];
+    updateData?: UpdateOrderDto;
+  }) {
     const order = await this.findById(_id);
     const createdMatchingOrderIds = order.matchingOrders.map(
       (matchingOrder) => matchingOrder._id,
@@ -42,10 +54,13 @@ export class OrderService {
       (id) => !createdMatchingOrderIds.includes(id),
     );
     if (newMatchingOrderIds.length) {
-      const res = await this.orderModel.findByIdAndUpdate(_id, {
+      await this.orderModel.findByIdAndUpdate(_id, {
         $push: { matchingOrders: { $each: newMatchingOrderIds } },
       });
-      console.log({ res });
+    }
+
+    if (updateData) {
+      await this.orderModel.findByIdAndUpdate(_id, { $set: updateData });
     }
   }
 
@@ -54,8 +69,8 @@ export class OrderService {
     if (matchedId === '0') return; //if order owner is initiator
     const newOrderId = orderMatchedEvent.id.toString();
 
-    await this.updateById(newOrderId, [matchedId]);
-    await this.updateById(matchedId, [newOrderId]);
+    await this.updateById({ _id: newOrderId, matchingOrderIds: [matchedId] });
+    await this.updateById({ _id: matchedId, matchingOrderIds: [newOrderId] });
   }
 
   async batchSaveMatchingOrders(
@@ -66,5 +81,12 @@ export class OrderService {
     for (const { args } of orderMatchedEvents) {
       await this.saveMatchingOrder(args);
     }
+  }
+
+  async cancelOrder(event: OrderCancelledEventEmittedResponse) {
+    await this.updateById({
+      _id: event.id.toString(),
+      updateData: { status: OrderStatus.CANCELLED },
+    });
   }
 }
