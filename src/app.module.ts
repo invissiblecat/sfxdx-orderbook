@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { OrderModule } from './order/order.module';
 import { ContractService } from './contract/contract.service';
 import { EthersService } from './ethers/ethers.service';
-import { EventListenerService } from './event-listener/event-listener.service';
+import { EventService } from './event/event.service';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 
@@ -13,6 +13,6 @@ import { MongooseModule } from '@nestjs/mongoose';
     OrderModule,
   ],
   controllers: [],
-  providers: [ContractService, EthersService, EventListenerService],
+  providers: [ContractService, EthersService, EventService],
 })
 export class AppModule {}

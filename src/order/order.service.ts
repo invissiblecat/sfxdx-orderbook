@@ -4,6 +4,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { Order } from '../schemas/order.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { OrderMatchedEventEmittedResponse } from 'src/types/abi/order-controller';
 
 @Injectable()
 export class OrderService {
@@ -12,7 +13,7 @@ export class OrderService {
     private orderModel: Model<Order>,
   ) {}
 
-  async create(createOrderDto: CreateOrderDto) {
+  create(createOrderDto: CreateOrderDto) {
     return new this.orderModel(createOrderDto).save();
   }
 
@@ -20,16 +21,42 @@ export class OrderService {
     return this.orderModel.find();
   }
 
-  findOne(id: string) {
-    return `This action returns a #${id} order`;
+  findById(id: string) {
+    return this.orderModel.findById(id).populate('matchingOrderIds');
   }
 
   update(id: string, updateOrderDto: UpdateOrderDto) {
     return `This action updates a #${id} order`;
   }
 
+  updateByBlockchainId(id: string, matchingOrderIds: string[] = []) {
+    if (matchingOrderIds.length) {
+      this.orderModel.findOneAndUpdate(
+        { id },
+        {
+          $push: { matchingOrders: [matchingOrderIds] },
+        },
+      );
+    }
+  }
+
   async batchCreateOrders(orders: CreateOrderDto[]) {
-    orders.forEach((order) => this.create(order));
-    console.log(`here`);
+    for (const order of orders) {
+      await this.create(order);
+    }
+  }
+
+  saveMatchingOrder(orderMatchedEvent: OrderMatchedEventEmittedResponse) {
+    const matchedId = orderMatchedEvent.matchedId.toString();
+    if (matchedId === '0') return; //if order owner is initiator
+    const newOrderId = orderMatchedEvent.id.toString();
+
+    this.updateByBlockchainId(newOrderId, [newOrderId]);
+  }
+
+  async batchSaveMatchingOrders(
+    orderMatchedEvents: OrderMatchedEventEmittedResponse[],
+  ) {
+    orderMatchedEvents.forEach((event) => this.saveMatchingOrder(event));
   }
 }

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 export enum OrderType {
   LIMIT = 'limit',
@@ -51,6 +51,9 @@ export class Order {
 
   @Prop()
   user: string;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Order' }] })
+  matchingOrders: Order[];
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
