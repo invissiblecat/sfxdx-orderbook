@@ -16,7 +16,7 @@ export const makeOrderCreateDtoFromRawInfo = (
   const status = makeOrderStatus(amountLeftToFill, isCancelled, amountToBuy);
 
   const createDto: CreateOrderDto = {
-    id: rawOrderInfo[0].toString(),
+    _id: rawOrderInfo[0].toString(),
     type: event.args.isMarket ? OrderType.MARKET : OrderType.LIMIT,
     status,
     tokenToSell: rawOrderInfo[6].toLowerCase(),

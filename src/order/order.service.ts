@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
 import { Order } from '../schemas/order.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -13,31 +12,10 @@ export class OrderService {
     private orderModel: Model<Order>,
   ) {}
 
-  create(createOrderDto: CreateOrderDto) {
+  async create(createOrderDto: CreateOrderDto) {
+    const createdOrder = await this.findById(createOrderDto._id);
+    if (createdOrder) return;
     return new this.orderModel(createOrderDto).save();
-  }
-
-  findAll() {
-    return this.orderModel.find();
-  }
-
-  findById(id: string) {
-    return this.orderModel.findById(id).populate('matchingOrderIds');
-  }
-
-  update(id: string, updateOrderDto: UpdateOrderDto) {
-    return `This action updates a #${id} order`;
-  }
-
-  updateByBlockchainId(id: string, matchingOrderIds: string[] = []) {
-    if (matchingOrderIds.length) {
-      this.orderModel.findOneAndUpdate(
-        { id },
-        {
-          $push: { matchingOrders: [matchingOrderIds] },
-        },
-      );
-    }
   }
 
   async batchCreateOrders(orders: CreateOrderDto[]) {
@@ -46,17 +24,47 @@ export class OrderService {
     }
   }
 
-  saveMatchingOrder(orderMatchedEvent: OrderMatchedEventEmittedResponse) {
+  findAll() {
+    return this.orderModel.find();
+  }
+
+  findById(_id: string) {
+    return this.orderModel.findOne({ _id }).populate('matchingOrders');
+  }
+
+  async updateById(_id: string, matchingOrderIds: string[] = []) {
+    const order = await this.findById(_id);
+    const createdMatchingOrderIds = order.matchingOrders.map(
+      (matchingOrder) => matchingOrder._id,
+    );
+
+    const newMatchingOrderIds = matchingOrderIds.filter(
+      (id) => !createdMatchingOrderIds.includes(id),
+    );
+    if (newMatchingOrderIds.length) {
+      const res = await this.orderModel.findByIdAndUpdate(_id, {
+        $push: { matchingOrders: { $each: newMatchingOrderIds } },
+      });
+      console.log({ res });
+    }
+  }
+
+  async saveMatchingOrder(orderMatchedEvent: OrderMatchedEventEmittedResponse) {
     const matchedId = orderMatchedEvent.matchedId.toString();
     if (matchedId === '0') return; //if order owner is initiator
     const newOrderId = orderMatchedEvent.id.toString();
 
-    this.updateByBlockchainId(newOrderId, [newOrderId]);
+    await this.updateById(newOrderId, [matchedId]);
+    await this.updateById(matchedId, [newOrderId]);
   }
 
   async batchSaveMatchingOrders(
-    orderMatchedEvents: OrderMatchedEventEmittedResponse[],
+    orderMatchedEvents: {
+      args: OrderMatchedEventEmittedResponse;
+    }[],
   ) {
-    orderMatchedEvents.forEach((event) => this.saveMatchingOrder(event));
+    for (const { args } of orderMatchedEvents) {
+      await this.saveMatchingOrder(args);
+    }
   }
 }

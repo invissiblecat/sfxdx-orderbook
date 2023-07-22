@@ -19,14 +19,12 @@ export class EventService {
     private contractSerice: ContractService,
     private ethersService: EthersService,
   ) {
-    this.syncOrderCreation();
+    this.syncOrders();
   }
 
   async syncOrders() {
     await this.syncOrderCreation();
-    console.log(`created`);
     await this.syncOrderMatching();
-    console.log(`updated`);
   }
 
   async syncOrderCreation() {
@@ -48,7 +46,7 @@ export class EventService {
   async syncOrderMatching() {
     const orderMatchedEvents = (await this.getPreviousEvents(
       'OrderMatched',
-    )) as unknown as OrderMatchedEventEmittedResponse[];
+    )) as unknown as { args: OrderMatchedEventEmittedResponse }[];
     this.orderSerice.batchSaveMatchingOrders(orderMatchedEvents);
   }
 
@@ -88,7 +86,7 @@ export class EventService {
 
       return events as { args: any }[];
     } catch (error) {
-      console.error('getEvents error:', { error });
+      throw new Error(error); //Error: Error: missing response
     }
   }
 

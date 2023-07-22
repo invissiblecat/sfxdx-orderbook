@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 
 export enum OrderType {
   LIMIT = 'limit',
@@ -23,7 +23,7 @@ export type OrderDocument = HydratedDocument<Order>;
 @Schema()
 export class Order {
   @Prop()
-  id: string;
+  _id: string;
 
   @Prop()
   type: OrderType;
@@ -52,7 +52,7 @@ export class Order {
   @Prop()
   user: string;
 
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'Order' }] })
+  @Prop({ type: [{ type: String, ref: 'Order' }] })
   matchingOrders: Order[];
 }
 
