@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Event } from 'ethers';
+import { Contract, Event } from 'ethers';
 import { ContractService } from 'src/contract/contract.service';
 import { EthersService } from 'src/ethers/ethers.service';
 import { OrderService } from 'src/order/order.service';
 import {
+  OrderCancelledEventEmittedResponse,
   OrderControllerEvents,
   OrderCreatedEventEmittedResponse,
   OrderMatchedEventEmittedResponse,
@@ -12,6 +13,10 @@ import { makeOrderCreateDtoFromRawInfo } from 'src/utils/orders';
 
 const GOERLI_MAX_BLOCKS_PER_GET = 5000;
 
+type OrderControllerEventTypes =
+  | OrderCreatedEventEmittedResponse
+  | OrderMatchedEventEmittedResponse
+  | OrderCancelledEventEmittedResponse;
 @Injectable()
 export class EventService {
   constructor(
@@ -20,11 +25,70 @@ export class EventService {
     private ethersService: EthersService,
   ) {
     this.syncOrders();
+    this.startAllListeners();
   }
 
   async syncOrders() {
     await this.syncOrderCreation();
     await this.syncOrderMatching();
+    await this.startAllListeners();
+  }
+
+  async startAllListeners() {
+    const orderController = this.contractSerice.getOrderControllerContract();
+
+    this.startListener('OrderCreated', orderController);
+    this.startListener('OrderMatched', orderController);
+    this.startListener('OrderCancelled', orderController);
+  }
+
+  async startListener(
+    eventName: OrderControllerEvents,
+    orderController: Contract,
+  ) {
+    console.log(`start ${eventName}`);
+
+    orderController.on(eventName, async (...args: any) => {
+      console.log(`got ${eventName}`);
+
+      const event = args[args.length - 1].args;
+      console.log({ event });
+
+      await this.eventActions(eventName, event);
+    });
+  }
+
+  async eventActions(
+    eventName: OrderControllerEvents,
+    event: OrderControllerEventTypes,
+  ) {
+    switch (eventName) {
+      case 'OrderCreated':
+        await this.saveCreatedOrder(event as OrderCreatedEventEmittedResponse);
+        break;
+      case 'OrderMatched':
+        await this.orderSerice.saveMatchingOrder(
+          event as OrderMatchedEventEmittedResponse,
+        );
+        break;
+      case 'OrderCancelled':
+        await this.orderSerice.cancelOrder(
+          event as OrderCancelledEventEmittedResponse,
+        );
+        break;
+      default:
+        return;
+    }
+  }
+
+  async saveCreatedOrder(event: OrderCreatedEventEmittedResponse) {
+    const orderInfo = await this.contractSerice.getOrderInfo(
+      event.id.toString(),
+    );
+    const createOrderDto = makeOrderCreateDtoFromRawInfo(orderInfo, {
+      args: event,
+    });
+    await this.orderSerice.create(createOrderDto);
   }
 
   async syncOrderCreation() {
