@@ -2,9 +2,11 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { ApiQuery } from '@nestjs/swagger';
-import { AnyObject, FilterQuery } from 'mongoose';
-import { Order, OrderStatus } from 'src/schemas/order.schema';
 import { AddressValidationPipe } from 'src/pipes/address-validation.pipe';
+import { constructFilterQuery } from 'src/utils/orders';
+import { AmountValidationPipe } from 'src/pipes/amount-validation.pipe';
+import { Order } from 'src/schemas/order.schema';
+import { BigNumber } from 'ethers';
 
 @Controller('order')
 export class OrderController {
@@ -27,55 +29,71 @@ export class OrderController {
     name: 'active',
     required: false,
   })
-  async findAll(
-    @Query('tokenA', AddressValidationPipe) tokenA?: string,
-    @Query('tokenB', AddressValidationPipe) tokenB?: string,
+  async getOrders(
+    @Query('tokenA', AddressValidationPipe) tokenToBuy?: string,
+    @Query('tokenB', AddressValidationPipe) tokenToSell?: string,
     @Query('user', AddressValidationPipe) user?: string,
     @Query('active') active: boolean = false,
   ) {
-    const filter = this.constructFilterQuery({
-      tokenToSell: tokenA,
-      tokenToBuy: tokenB,
+    const filter = constructFilterQuery({
+      tokenToSell,
+      tokenToBuy,
       user,
       active,
     });
     return this.orderService.findAll(filter);
   }
 
-  constructFilterQuery(fields: AnyObject) {
-    const filterQuery: FilterQuery<Order> = {};
+  @Get('/getMatchingOrders')
+  async getMatchingOrders(
+    @Query('tokenA', AddressValidationPipe) tokenToSell?: string,
+    @Query('tokenB', AddressValidationPipe) tokenToBuy?: string,
+    @Query('amountA', AmountValidationPipe) amountToSell?: string,
+    @Query('amountB', AmountValidationPipe) amountToBuy?: string,
+  ) {
+    const filter = constructFilterQuery({
+      tokenToSell,
+      tokenToBuy,
+      active: true,
+    });
+    const orders = await this.orderService.findAll(filter);
+    const filteredOrders = orders.reduce<Order[]>((result, order) => {
+      const readyToSell = result.reduce((sum, current) => {
+        sum = sum.add(current.amountToBuy);
+        return sum;
+      }, BigNumber.from(0));
 
-    const names = Object.keys(fields);
-    const values = Object.values(fields);
+      const readyToBuy = result.reduce((sum, current) => {
+        sum = sum.add(current.amountToSell);
+        return sum;
+      }, BigNumber.from(0));
 
-    values.forEach((value, i) => {
-      if (names[i] === 'active') {
-        const status = this.convertActiveToStatus(value);
-        if (status) filterQuery['status'] = status;
-        return;
+      if (
+        readyToSell.add(order.amountToBuy).lte(BigNumber.from(amountToSell)) &&
+        readyToBuy.add(amountToSell).lte(BigNumber.from(amountToBuy))
+      ) {
+        result.push(order);
       }
-      if (typeof value === 'string')
-        filterQuery[names[i]] = this.constructCaseUnsensitiveRegExp(value);
+
+      return result;
+    }, []);
+
+    const readyToSell = filteredOrders.reduce((sum, current) => {
+      sum = sum.add(current.amountToBuy);
+      return sum;
+    }, BigNumber.from(0));
+
+    const readyToBuy = filteredOrders.reduce((sum, current) => {
+      sum = sum.add(current.amountToSell);
+      return sum;
+    }, BigNumber.from(0));
+
+    console.log({
+      readyToBuy: readyToBuy.toString(),
+      readyToSell: readyToSell.toString(),
     });
 
-    return filterQuery;
-  }
-
-  convertActiveToStatus(active: boolean) {
-    if (active) {
-      return {
-        $in: [OrderStatus.ACTIVE, OrderStatus.PARTIALLY_FILLED],
-      };
-    }
-    return {
-      $in: [OrderStatus.FILLED, OrderStatus.CANCELLED],
-    };
-  }
-
-  constructCaseUnsensitiveRegExp(addressLike: string) {
-    return {
-      $regex: addressLike,
-      $options: 'i',
-    };
+    const ids = filteredOrders.map((order) => order._id);
+    return ids;
   }
 }

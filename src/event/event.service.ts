@@ -24,8 +24,8 @@ export class EventService {
     private contractSerice: ContractService,
     private ethersService: EthersService,
   ) {
-    this.syncOrders();
-    this.startAllListeners();
+    // this.syncOrders();
+    // this.startAllListeners();
   }
 
   async syncOrders() {
