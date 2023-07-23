@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Order, OrderStatus } from '../schemas/order.schema';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { FilterQuery, Model } from 'mongoose';
 import {
   OrderCancelledEventEmittedResponse,
   OrderMatchedEventEmittedResponse,
@@ -28,8 +28,8 @@ export class OrderService {
     }
   }
 
-  findAll() {
-    return this.orderModel.find();
+  async findAll(filter: FilterQuery<Order>) {
+    return this.orderModel.find(filter).populate('matchingOrders');
   }
 
   findById(_id: string) {
