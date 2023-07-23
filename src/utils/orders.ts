@@ -1,6 +1,7 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, BigNumberish } from 'ethers';
+import { AnyObject, FilterQuery } from 'mongoose';
 import { CreateOrderDto } from 'src/order/dto/create-order.dto';
-import { OrderStatus, OrderType } from 'src/schemas/order.schema';
+import { Order, OrderStatus, OrderType } from 'src/schemas/order.schema';
 import {
   GetOrderInfoResponse,
   OrderCreatedEventEmittedResponse,
@@ -16,7 +17,7 @@ export const makeOrderCreateDtoFromRawInfo = (
   const status = makeOrderStatus(amountLeftToFill, isCancelled, amountToBuy);
 
   const createDto: CreateOrderDto = {
-    _id: rawOrderInfo[0].toString(),
+    _id: makeId(rawOrderInfo[0]),
     type: event.args.isMarket ? OrderType.MARKET : OrderType.LIMIT,
     status,
     tokenToSell: rawOrderInfo[6].toLowerCase(),
@@ -41,3 +42,44 @@ const makeOrderStatus = (
   if (amountLeftToFill.lt(amountToBuy)) return OrderStatus.PARTIALLY_FILLED;
   return OrderStatus.ACTIVE;
 };
+
+export const constructFilterQuery = (fields: AnyObject) => {
+  const filterQuery: FilterQuery<Order> = {};
+
+  const names = Object.keys(fields);
+  const values = Object.values(fields);
+
+  values.forEach((value, i) => {
+    if (names[i] === 'active' && typeof value === 'boolean') {
+      const status = convertActiveToStatus(value);
+      if (status) filterQuery['status'] = status;
+      return;
+    }
+    if (typeof value === 'string') {
+      filterQuery[names[i]] = constructCaseUnsensitiveRegExp(value);
+    }
+  });
+
+  return filterQuery;
+};
+
+export const convertActiveToStatus = (active: boolean) => {
+  if (active) {
+    return {
+      $in: [OrderStatus.ACTIVE, OrderStatus.PARTIALLY_FILLED],
+    };
+  }
+  return {
+    $in: [OrderStatus.FILLED, OrderStatus.CANCELLED],
+  };
+};
+
+export const constructCaseUnsensitiveRegExp = (addressLike: string) => {
+  return {
+    $regex: addressLike,
+    $options: 'i',
+  };
+};
+
+export const makeId = (rawId: BigNumberish) =>
+  BigNumber.from(rawId).toHexString();

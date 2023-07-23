@@ -8,6 +8,7 @@ import {
   OrderMatchedEventEmittedResponse,
 } from 'src/types/abi/order-controller';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { makeId } from 'src/utils/orders';
 
 @Injectable()
 export class OrderService {
@@ -46,6 +47,8 @@ export class OrderService {
     updateData?: UpdateOrderDto;
   }) {
     const order = await this.findById(_id);
+    console.log({ _id });
+
     const createdMatchingOrderIds = order.matchingOrders.map(
       (matchingOrder) => matchingOrder._id,
     );
@@ -65,12 +68,12 @@ export class OrderService {
   }
 
   async saveMatchingOrder(orderMatchedEvent: OrderMatchedEventEmittedResponse) {
-    const matchedId = orderMatchedEvent.matchedId.toString();
-    if (matchedId === '0') return; //if order owner is initiator
-    const newOrderId = orderMatchedEvent.id.toString();
+    const matchedId = makeId(orderMatchedEvent.matchedId);
+    if (matchedId === makeId('0')) return; //if order owner is initiator
+    const newOrderId = makeId(orderMatchedEvent.id);
 
-    await this.updateById({ _id: newOrderId, matchingOrderIds: [matchedId] });
     await this.updateById({ _id: matchedId, matchingOrderIds: [newOrderId] });
+    await this.updateById({ _id: newOrderId, matchingOrderIds: [matchedId] });
   }
 
   async batchSaveMatchingOrders(
@@ -85,7 +88,7 @@ export class OrderService {
 
   async cancelOrder(event: OrderCancelledEventEmittedResponse) {
     await this.updateById({
-      _id: event.id.toString(),
+      _id: makeId(event.id),
       updateData: { status: OrderStatus.CANCELLED },
     });
   }

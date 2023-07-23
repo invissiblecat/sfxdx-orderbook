@@ -9,7 +9,7 @@ import {
   OrderCreatedEventEmittedResponse,
   OrderMatchedEventEmittedResponse,
 } from 'src/types/abi/order-controller';
-import { makeOrderCreateDtoFromRawInfo } from 'src/utils/orders';
+import { makeId, makeOrderCreateDtoFromRawInfo } from 'src/utils/orders';
 
 const GOERLI_MAX_BLOCKS_PER_GET = 5000;
 
@@ -47,7 +47,6 @@ export class EventService {
     orderController: Contract,
   ) {
     console.log(`start ${eventName}`);
-
     orderController.on(eventName, async (...args: any) => {
       console.log(`got ${eventName}`);
 
@@ -82,9 +81,7 @@ export class EventService {
   }
 
   async saveCreatedOrder(event: OrderCreatedEventEmittedResponse) {
-    const orderInfo = await this.contractSerice.getOrderInfo(
-      event.id.toString(),
-    );
+    const orderInfo = await this.contractSerice.getOrderInfo(makeId(event.id));
     const createOrderDto = makeOrderCreateDtoFromRawInfo(orderInfo, {
       args: event,
     });
@@ -120,7 +117,6 @@ export class EventService {
     try {
       const provider = this.ethersService.getProvider();
       const currentLastBlock = await provider.getBlockNumber();
-
       let fromBlock = 0;
       const eventPromises = [];
       for (
