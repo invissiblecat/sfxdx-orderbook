@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-inferrable-types */
 import { Controller, Get, Query } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { ApiQuery } from '@nestjs/swagger';
@@ -30,7 +31,7 @@ export class OrderController {
     @Query('tokenA', AddressValidationPipe) tokenA?: string,
     @Query('tokenB', AddressValidationPipe) tokenB?: string,
     @Query('user', AddressValidationPipe) user?: string,
-    @Query('active') active?: boolean,
+    @Query('active') active: boolean = false,
   ) {
     const filter = this.constructFilterQuery({
       tokenToSell: tokenA,
@@ -38,8 +39,6 @@ export class OrderController {
       user,
       active,
     });
-    console.log({ filter });
-
     return this.orderService.findAll(filter);
   }
 
@@ -63,11 +62,14 @@ export class OrderController {
   }
 
   convertActiveToStatus(active: boolean) {
-    if (active)
+    if (active) {
       return {
         $in: [OrderStatus.ACTIVE, OrderStatus.PARTIALLY_FILLED],
       };
-    return undefined;
+    }
+    return {
+      $in: [OrderStatus.FILLED, OrderStatus.CANCELLED],
+    };
   }
 
   constructCaseUnsensitiveRegExp(addressLike: string) {
