@@ -32,7 +32,6 @@ export class EventService {
   async syncOrders() {
     await this.syncOrderCreation();
     await this.syncOrderMatching();
-    await this.startAllListeners();
   }
 
   async startAllListeners() {
@@ -107,6 +106,7 @@ export class EventService {
 
   async syncOrderCreation() {
     const orderCreatedEvents = await this.getPreviousEvents('OrderCreated');
+    if (!orderCreatedEvents) return;
 
     const orderIds = this.getOrderIdsFromEvents(orderCreatedEvents);
     const orders = await this.contractSerice.batchGetOrdersInfo(orderIds);
@@ -121,6 +121,7 @@ export class EventService {
 
   async syncOrderMatching() {
     const orderMatchedEvents = await this.getPreviousEvents('OrderMatched');
+    if (!orderMatchedEvents) return;
     this.orderSerice.batchSaveMatchingOrders(
       orderMatchedEvents as OrderMatchedEventEmittedResponse[],
     );
@@ -151,23 +152,26 @@ export class EventService {
         orderController.queryFilter(eventName, fromBlock, currentLastBlock), //todo response err handle
       );
 
-      const eventsByBlocks = await Promise.all(eventPromises);
+      const eventsByBlocks: Event[][] = await Promise.all(eventPromises);
 
-      const events = eventsByBlocks.reduce<Event[]>((result, eventsByBlock) => {
-        if (!eventsByBlock.length) return result;
-        result = [...result, ...eventsByBlock];
-        return result;
-      }, []);
+      const events = eventsByBlocks?.reduce<Event[]>(
+        (result, eventsByBlock) => {
+          if (!eventsByBlock.length) return result;
+          result = [...result, ...eventsByBlock];
+          return result;
+        },
+        [],
+      );
 
-      const eventArgs = events.map((event) => event.args);
+      const eventArgs = events?.map((event) => event.args);
 
       return eventArgs as any[];
     } catch (error) {
-      throw new Error(error); //Error: Error: missing response
+      console.error(error); //Error: Error: missing response
     }
   }
 
   getOrderIdsFromEvents(events: { id: BigNumber }[]) {
-    return events.map((event) => event.id.toString());
+    return events.map((event) => event?.id.toString());
   }
 }
