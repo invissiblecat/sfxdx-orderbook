@@ -6,25 +6,29 @@ import {
   GetOrderInfoResponse,
   OrderCreatedEventEmittedResponse,
 } from 'src/types/abi/order-controller';
+import _ from 'lodash';
 
 export const makeOrderCreateDtoFromRawInfo = (
   rawOrderInfo: GetOrderInfoResponse,
-  event: { args: OrderCreatedEventEmittedResponse },
+  event?: OrderCreatedEventEmittedResponse,
 ) => {
-  const amountLeftToFill = rawOrderInfo[3];
-  const isCancelled = rawOrderInfo[8];
-  const amountToBuy = rawOrderInfo[1];
-  const status = makeOrderStatus(amountLeftToFill, isCancelled, amountToBuy);
+  const status = makeOrderStatus(rawOrderInfo);
+
+  const type = event
+    ? event.isMarket
+      ? OrderType.MARKET
+      : OrderType.LIMIT
+    : undefined;
 
   const createDto: CreateOrderDto = {
     _id: makeId(rawOrderInfo[0]),
-    type: event.args.isMarket ? OrderType.MARKET : OrderType.LIMIT,
+    type,
     status,
     tokenToSell: rawOrderInfo[6].toLowerCase(),
     tokenToBuy: rawOrderInfo[5].toLowerCase(),
     amountToSell: rawOrderInfo[2].toString(),
-    amountToBuy: amountToBuy.toString(),
-    amountLeftToFill: amountLeftToFill.toString(),
+    amountToBuy: rawOrderInfo[1].toString(),
+    amountLeftToFill: rawOrderInfo[3].toString(),
     fees: rawOrderInfo[4].toString(),
     user: rawOrderInfo[7].toString(),
   };
@@ -32,11 +36,19 @@ export const makeOrderCreateDtoFromRawInfo = (
   return createDto;
 };
 
-const makeOrderStatus = (
-  amountLeftToFill: BigNumber,
-  isCancelled: boolean,
-  amountToBuy: BigNumber,
+export const makeUpdateOrderDtoFromRawInfo = (
+  rawOrderInfo: GetOrderInfoResponse,
+  event?: OrderCreatedEventEmittedResponse,
 ) => {
+  const info = makeOrderCreateDtoFromRawInfo(rawOrderInfo, event);
+  return _.omit(info, ['_id']);
+};
+
+export const makeOrderStatus = (rawOrderInfo: GetOrderInfoResponse) => {
+  const amountLeftToFill = rawOrderInfo[3];
+  const isCancelled = rawOrderInfo[8];
+  const amountToBuy = rawOrderInfo[1];
+
   if (isCancelled) return OrderStatus.CANCELLED;
   if (amountLeftToFill.eq(0)) return OrderStatus.FILLED;
   if (amountLeftToFill.lt(amountToBuy)) return OrderStatus.PARTIALLY_FILLED;

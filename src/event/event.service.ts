@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Contract, Event } from 'ethers';
+import { BigNumber, Contract, Event } from 'ethers';
 import { ContractService } from 'src/contract/contract.service';
 import { EthersService } from 'src/ethers/ethers.service';
 import { OrderService } from 'src/order/order.service';
@@ -19,13 +19,14 @@ type OrderControllerEventTypes =
   | OrderCancelledEventEmittedResponse;
 @Injectable()
 export class EventService {
+  pendingMatchedEvents = [];
   constructor(
     private orderSerice: OrderService,
     private contractSerice: ContractService,
     private ethersService: EthersService,
   ) {
-    // this.syncOrders();
-    // this.startAllListeners();
+    this.syncOrders();
+    this.startAllListeners();
   }
 
   async syncOrders() {
@@ -66,7 +67,7 @@ export class EventService {
         await this.saveCreatedOrder(event as OrderCreatedEventEmittedResponse);
         break;
       case 'OrderMatched':
-        await this.orderSerice.saveMatchingOrder(
+        this.saveToDbOrToPendingMatches(
           event as OrderMatchedEventEmittedResponse,
         );
         break;
@@ -80,12 +81,28 @@ export class EventService {
     }
   }
 
+  async saveToDbOrToPendingMatches(event: OrderMatchedEventEmittedResponse) {
+    const isSuccess = await this.orderSerice.saveMatchingOrder(event);
+    if (isSuccess) return;
+
+    this.pendingMatchedEvents.push(event);
+  }
+
   async saveCreatedOrder(event: OrderCreatedEventEmittedResponse) {
     const orderInfo = await this.contractSerice.getOrderInfo(makeId(event.id));
-    const createOrderDto = makeOrderCreateDtoFromRawInfo(orderInfo, {
-      args: event,
+    const createOrderDto = makeOrderCreateDtoFromRawInfo(orderInfo, event);
+    await this.orderSerice.createOrUpdate(createOrderDto);
+
+    const successfulEvents = await this.orderSerice.batchSaveMatchingOrders(
+      this.pendingMatchedEvents,
+    );
+    successfulEvents.forEach((event) => {
+      const index = this.pendingMatchedEvents.findIndex(event);
+      this.pendingMatchedEvents = [
+        ...this.pendingMatchedEvents.slice(0, index),
+        ...this.pendingMatchedEvents.slice(index + 1),
+      ];
     });
-    await this.orderSerice.create(createOrderDto);
   }
 
   async syncOrderCreation() {
@@ -96,19 +113,17 @@ export class EventService {
     const createOrderDtos = orders.map((order, i) =>
       makeOrderCreateDtoFromRawInfo(
         order,
-        orderCreatedEvents[i] as unknown as {
-          args: OrderCreatedEventEmittedResponse;
-        },
+        orderCreatedEvents[i] as OrderCreatedEventEmittedResponse,
       ),
     );
     await this.orderSerice.batchCreateOrders(createOrderDtos);
   }
 
   async syncOrderMatching() {
-    const orderMatchedEvents = (await this.getPreviousEvents(
-      'OrderMatched',
-    )) as unknown as { args: OrderMatchedEventEmittedResponse }[];
-    this.orderSerice.batchSaveMatchingOrders(orderMatchedEvents);
+    const orderMatchedEvents = await this.getPreviousEvents('OrderMatched');
+    this.orderSerice.batchSaveMatchingOrders(
+      orderMatchedEvents as OrderMatchedEventEmittedResponse[],
+    );
   }
 
   async getPreviousEvents(eventName: OrderControllerEvents) {
@@ -144,13 +159,15 @@ export class EventService {
         return result;
       }, []);
 
-      return events as { args: any }[];
+      const eventArgs = events.map((event) => event.args);
+
+      return eventArgs as any[];
     } catch (error) {
       throw new Error(error); //Error: Error: missing response
     }
   }
 
-  getOrderIdsFromEvents(events: { args: any }[]) {
-    return events.map((event) => event.args.id.toString());
+  getOrderIdsFromEvents(events: { id: BigNumber }[]) {
+    return events.map((event) => event.id.toString());
   }
 }

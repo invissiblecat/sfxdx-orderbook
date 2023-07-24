@@ -2,7 +2,7 @@ import { OrderStatus, OrderType } from '../../schemas/order.schema';
 
 export class CreateOrderDto {
   _id: string;
-  type: OrderType;
+  type?: OrderType;
   status: OrderStatus;
   tokenToSell: string; //token b
   tokenToBuy: string; //token a
