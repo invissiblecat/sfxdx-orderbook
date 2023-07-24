@@ -9,7 +9,7 @@
 ## Installation
 
 ```bash
-$ npm i
+$ yarn
 ```
 
 Fill the `.env` file `.evm.example`-like:
@@ -25,7 +25,7 @@ API_KEY=''
 ## Running the app
 
 ```bash
-$ npm start
+$ yarn start
 ```
 
 ## Troubleshooting
