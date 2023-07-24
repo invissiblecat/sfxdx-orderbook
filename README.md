@@ -1,9 +1,12 @@
 ## Description
 
   # Order API
-
+```
   */getOrders*
+  
   */getMatchingOrders*
+
+```
 
 ## Installation
 
@@ -26,3 +29,8 @@ API_KEY=''
 ```bash
 $ npm start
 ```
+
+## Troubleshooting
+
+* `Error: failed response` or `Error: missing response` on app startup -- happens once in while. Probably RPC provider error specific for testnets.
+  *Solution* -- restart server while error no longer is present
