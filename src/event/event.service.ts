@@ -133,7 +133,7 @@ export class EventService {
     try {
       const provider = this.ethersService.getProvider();
       const currentLastBlock = await provider.getBlockNumber();
-      let fromBlock = 0;
+      let fromBlock = 7722460; //contract creation block
       const eventPromises = [];
       for (
         let toBlock = GOERLI_MAX_BLOCKS_PER_GET;
